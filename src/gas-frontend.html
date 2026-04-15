@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestão de Amostras Lab</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .dashboard-card { border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 10px; }
+    .table-container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .status-ok { color: #198754; font-weight: bold; }
+    .status-alert { color: #dc3545; font-weight: bold; }
+    .status-warning { color: #ffc107; font-weight: bold; }
+    .badge-custom { padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; }
+    .bg-ok { background-color: #d1e7dd; color: #0f5132; }
+    .bg-alert { background-color: #f8d7da; color: #842029; }
+    .header-panel { background: #212529; color: white; padding: 15px; border-radius: 10px 10px 0 0; }
+  </style>
+</head>
+<body>
+
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h2 class="fw-bold text-dark">🔬 Gestão de Amostras Lab</h2>
+      <p class="text-muted">Integração Google Sheets</p>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="card dashboard-card mb-4">
+    <div class="header-panel">
+      <h5 class="mb-0">📊 Painel de Resumo Operacional</h5>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-bordered mb-0 text-center">
+          <thead class="table-light">
+            <tr id="dash-header">
+              <th class="text-start">Indicador</th>
+              <!-- Datas serão inseridas aqui -->
+            </tr>
+          </thead>
+          <tbody>
+            <tr id="dash-total">
+              <td class="text-start fw-bold">Total do Dia</td>
+            </tr>
+            <tr id="dash-ok">
+              <td class="text-start fw-bold">Total OK</td>
+            </tr>
+            <tr id="dash-pendente">
+              <td class="text-start fw-bold">Pendente (Subtração)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABELA PRINCIPAL -->
+  <div class="table-container">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Código</th>
+            <th>Método</th>
+            <th>Tipo</th>
+            <th>Identificação</th>
+            <th>Distribuição</th>
+            <th>Entrega</th>
+            <th>Limite</th>
+            <th>Recebimento</th>
+            <th>Prazo</th>
+            <th>Analises</th>
+            <th>Resultado</th>
+          </tr>
+        </thead>
+        <tbody id="main-table-body">
+          <tr>
+            <td colspan="11" class="text-center py-5">Carregando dados...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Simulação de dados ou chamada real do GAS
+  function loadData() {
+    if (typeof google !== 'undefined') {
+      google.script.run.withSuccessHandler(renderApp).getSheetData();
+    } else {
+      // Mock para preview local
+      const mockData = [
+        { codigo: 'A001', metodoAnalise: 'HPLC', tipoAmostra: 'Solo', identificacaoAmostra: 'Lote 1', dataDistribuicao: new Date(), dataOrdemEntrega: new Date(), dataLimite: new Date(), amostrasEmAnalise: '' }
+      ];
+      renderApp(mockData);
+    }
+  }
+
+  function renderApp(data) {
+    renderDashboard(data);
+    renderTable(data);
+  }
+
+  function renderDashboard(data) {
+    const header = document.getElementById('dash-header');
+    const totalRow = document.getElementById('dash-total');
+    const okRow = document.getElementById('dash-ok');
+    const pendRow = document.getElementById('dash-pendente');
+
+    const today = new Date();
+    for (let i = 0; i < 8; i++) {
+      const date = new Date();
+      date.setDate(today.getDate() + i);
+      const dateStr = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      
+      const th = document.createElement('th');
+      th.innerText = dateStr;
+      header.appendChild(th);
+
+      const daySamples = data.filter(s => {
+        const dLimite = new Date(s.dataLimite);
+        return dLimite.toDateString() === date.toDateString();
+      });
+
+      const total = daySamples.length;
+      const ok = daySamples.filter(s => {
+        const dLimite = new Date(s.dataLimite);
+        const dDist = new Date(s.dataDistribuicao);
+        const diff = (dLimite - dDist) / (1000 * 60 * 60 * 24);
+        return diff >= 2;
+      }).length;
+
+      totalRow.insertCell().innerText = total;
+      okRow.insertCell().innerHTML = `<span class="text-success">${ok}</span>`;
+      pendRow.insertCell().innerHTML = `<span class="text-danger fw-bold">${total - ok}</span>`;
+    }
+  }
+
+  function renderTable(data) {
+    const tbody = document.getElementById('main-table-body');
+    tbody.innerHTML = '';
+
+    data.forEach((row, index) => {
+      const tr = document.createElement('tr');
+      
+      const dLimite = new Date(row.dataLimite);
+      const dDist = new Date(row.dataDistribuicao);
+      const dEntrega = new Date(row.dataOrdemEntrega);
+
+      // Regra 1
+      const diffRec = (dLimite - dDist) / (1000 * 60 * 60 * 24);
+      const recStatus = diffRec < 2 ? 'Chegou vencida' : 'OK';
+      const recClass = diffRec < 2 ? 'bg-alert' : 'bg-ok';
+
+      // Regra 2
+      const diffPrazo = (dEntrega - dDist) / (1000 * 60 * 60 * 24);
+      const prazoStatus = diffPrazo < 6 ? 'Rush' : 'Normal';
+      const prazoClass = diffPrazo < 6 ? 'bg-alert' : 'bg-ok';
+
+      // Regra 3
+      const resStatus = row.amostrasEmAnalise == row.codigo ? 'OK' : 'Verificar';
+      const resClass = row.amostrasEmAnalise == row.codigo ? 'bg-ok' : 'bg-alert';
+
+      tr.innerHTML = `
+        <td>${row.codigo}</td>
+        <td>${row.metodoAnalise}</td>
+        <td>${row.tipoAmostra}</td>
+        <td>${row.identificacaoAmostra}</td>
+        <td>${dDist.toLocaleDateString()}</td>
+        <td>${dEntrega.toLocaleDateString()}</td>
+        <td>${dLimite.toLocaleDateString()}</td>
+        <td><span class="badge-custom ${recClass}">${recStatus}</span></td>
+        <td><span class="badge-custom ${prazoClass}">${prazoStatus}</span></td>
+        <td><input type="text" class="form-control form-control-sm" value="${row.amostrasEmAnalise || ''}" onchange="updateValue('${row.codigo}', this.value)"></td>
+        <td><span class="badge-custom ${resClass}">${resStatus}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function updateValue(codigo, valor) {
+    if (typeof google !== 'undefined') {
+      google.script.run.updateAmostraAnalise(codigo, valor);
+    }
+    console.log('Atualizando:', codigo, valor);
+  }
+
+  window.onload = loadData;
+</script>
+</body>
+</html>

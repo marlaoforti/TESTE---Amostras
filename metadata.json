@@ -1,0 +1,6 @@
+{
+  "name": "Gestão de Amostras Lab",
+  "description": "Dashboard de monitoramento de amostras laboratoriais com integração Google Sheets",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
